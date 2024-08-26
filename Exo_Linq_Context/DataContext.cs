@@ -51,6 +51,7 @@ namespace Exo_Linq_Context
                 new Section(){ Section_ID = 1120, Section_Name = "MSc Economics", Delegate_ID = 6},
                 new Section(){ Section_ID = 1310, Section_Name = "BA Sociology", Delegate_ID = 23},
                 new Section(){ Section_ID = 1320, Section_Name = "MA Sociology", Delegate_ID = 6},
+                new Section(){ Section_ID = 4020, Section_Name = "Nouvelle section", Delegate_ID = 1},
             });
             this.Professors = new List<Professor>();
             this.Professors.AddRange(new Professor[] {
