@@ -1,4 +1,5 @@
 ﻿using Exo_Linq_Context;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using static System.Net.Mime.MediaTypeNames;
 
@@ -151,14 +152,103 @@ var result4_9bis = from st in context.Students
                        Grade = g.GradeName
                    };
 
-Console.Clear();
-foreach ( var item in result4_9)
-{
-    Console.WriteLine(item);
-}
 
 
 
 // 4.10 - Donner la liste des professeurs et la section à laquelle ils se rapportent ainsi que le(s) cour(s)(nom du cours et crédits) dont le professeur est responsable. La liste est triée par ordre décroissant des crédits attribués à un cours.
 
+var result4_10 = context.Professors.GroupJoin(                                      // Groupe join entre Prof et course
+                                        context.Courses,
+                                        p => p.Professor_ID,
+                                        c => c.Professor_ID,
+                                        (prof, courses) => new
+                                        {
+                                            Prof = prof,                            // Un prof
+                                            TempCourses = courses                   // Une liste de course (Potentiellement vide)
+                                        }
+                                   )
+                                   .SelectMany(                                     // Fonction pour applanir le resultat
+                                        res => res.TempCourses.DefaultIfEmpty(),    // → Permet d'obtenir un resultat comme "left join"
+                                        (res, c) => new                             //   Le prof sans course, ne sont pas perdu
+                                        {                                           //   contrairement à un Join (Inner join)
+                                            res.Prof,
+                                            Course = c
+                                        }
+                                   )
+                                   .GroupJoin(                                      // Groupe join entre le resultat précédent et les section
+                                        context.Sections,
+                                        res => res.Prof.Section_ID,
+                                        s => s.Section_ID,
+                                        (res, sections) => new
+                                        {
+                                            Prof = res.Prof,
+                                            Course = res.Course,
+                                            TempSections = sections
+                                        }
+                                   )
+                                   .SelectMany(                                     // Fonction pour applanir le resultat
+                                        res => res.TempSections.DefaultIfEmpty(),
+                                        (res, s) => new
+                                        {
+                                            ProfessorName = res.Prof.Professor_Name,
+                                            Section = s?.Section_Name,
+                                            CourseName = res.Course?.Course_Name,
+                                            CourseEcts = res.Course?.Course_Ects
+                                        }
+                                   )
+                                   .OrderByDescending(res => res.CourseEcts);
+
+Console.Clear();
+foreach (var item in result4_10)
+{
+    Console.WriteLine(item);
+}
+Console.WriteLine();
+
+
+
+int count = 1_000_000;
+Stopwatch sw1 = new Stopwatch();
+Stopwatch sw2 = new Stopwatch();
+
+sw1.Start();
+for (int i = 0; i < count; i++)
+{
+    var result4_10bis = from p in context.Professors
+                        join _c in context.Courses on p.Professor_ID equals _c.Professor_ID into tempCourses
+                        join _s in context.Sections on p.Section_ID equals _s.Section_ID into tempSections
+                        from c in tempCourses.DefaultIfEmpty()
+                        from s in tempSections.DefaultIfEmpty()
+                        orderby c?.Course_Ects descending
+                        select new
+                        {
+                            ProfessorName = p.Professor_Name,
+                            Section = s?.Section_Name,
+                            CourseName = c?.Course_Name,
+                            CourseEcts = c?.Course_Ects,
+                        };
+}
+sw1.Stop();
+
+sw2.Start();
+for (int i = 0; i < count; i++)
+{
+    var result4_10tier = context.Professors
+                            .GroupJoin(context.Courses, p => p.Professor_ID, c => c.Professor_ID, (prof, courses) => new { Prof = prof, TempCourses = courses })
+                            .SelectMany(res => res.TempCourses.DefaultIfEmpty(), (res, c) => new { res.Prof, Course = c })
+                            .GroupJoin(context.Sections, res => res.Prof.Section_ID, s => s.Section_ID, (res, sections) => new { Prof = res.Prof, Course = res.Course, TempSections = sections })
+                            .SelectMany(res => res.TempSections.DefaultIfEmpty(), (res, s) => new
+                            {
+                                ProfessorName = res.Prof.Professor_Name,
+                                Section = s?.Section_Name,
+                                CourseName = res.Course?.Course_Name,
+                                CourseEcts = res.Course?.Course_Ects
+                            })
+                            .OrderByDescending(res => res.CourseEcts);
+}
+sw2.Stop();
+
+Console.WriteLine("Test de la même requete en méthode et en expression");
+Console.WriteLine($"Expression : {sw1.ElapsedTicks} ({sw1.ElapsedMilliseconds} ms)");
+Console.WriteLine($"Methode    : {sw2.ElapsedTicks} ({sw2.ElapsedMilliseconds} ms)");
 
